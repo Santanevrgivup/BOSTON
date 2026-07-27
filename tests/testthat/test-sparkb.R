@@ -20,3 +20,10 @@ test_that("sparkb validates the input shape", {
   expect_error(sparkb(matrix(0, 2, 10), matrix(1, 10, 1)), "exactly two columns")
   expect_error(sparkb(matrix(0, 2, 10), matrix(1, 9, 2)), "must equal")
 })
+
+test_that("sparkb accepts dgCMatrix input", {
+  set.seed(3)
+  location <- cbind(x = runif(12), y = runif(12))
+  counts <- Matrix::Matrix(rbind(rbinom(12, 1, .4), rbinom(12, 1, .5)), sparse = TRUE)
+  expect_s3_class(sparkb(counts, location, fit_maxiter = 30), "sparkb_result")
+})

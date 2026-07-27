@@ -192,7 +192,8 @@ sparkb <- function(counts,
   if (!is.matrix(counts) && !inherits(counts, "Matrix")) {
     stop("`counts` must be a numeric matrix or Matrix object.", call. = FALSE)
   }
-  if (!is.numeric(counts) || any(!is.finite(counts)) || any(counts < 0)) {
+  values <- if (inherits(counts, "Matrix")) counts@x else counts
+  if (!is.numeric(values) || any(!is.finite(values)) || any(values < 0)) {
     stop("`counts` must contain finite, non-negative numeric values.", call. = FALSE)
   }
   if (is.null(rownames(counts))) rownames(counts) <- paste0("feature_", seq_len(nrow(counts)))
