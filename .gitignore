@@ -1,0 +1,7 @@
+.Rhistory
+.RData
+.Ruserdata
+*.o
+*.so
+*.dll
+*.tar.gz

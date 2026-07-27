@@ -1,0 +1,27 @@
+Package: SPARKb
+Type: Package
+Title: Spatially Variable Feature Detection for Sparse Spatial Omics Data
+Version: 0.1.0
+Authors@R: c(
+    person("Yuhan", "Zhao", email = "yuhanZhao@stu.xjtu.edu.cn", role = c("aut", "cre")),
+    person("Shiquan", "Sun", email = "sqsunsph@xjtu.edu.cn", role = "aut"))
+Description: Detects spatially variable features in sparse spatial omics data
+    with a binomial mixed-model score test. SPARKb binarizes feature counts,
+    evaluates five Gaussian spatial kernels selected from the observed spatial
+    sampling density, and combines kernel-specific p-values using ACAT.
+License: GPL-3
+Encoding: UTF-8
+Language: en-US
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Depends: R (>= 4.1.0)
+Imports:
+    Matrix,
+    Rcpp,
+    stats
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3

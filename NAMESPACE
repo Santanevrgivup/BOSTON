@@ -1,0 +1,6 @@
+useDynLib(SPARKb, .registration = TRUE)
+import(Rcpp)
+importFrom(Matrix,Matrix)
+importFrom(stats,binomial,glm,median,model.matrix,p.adjust,pchisq,pcauchy)
+export(adaptive_bandwidths)
+export(sparkb)
