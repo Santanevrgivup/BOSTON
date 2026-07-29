@@ -36,6 +36,8 @@ adaptive_bandwidths <- function(location) {
 #'
 #' @param counts A numeric matrix or a `Matrix::dgCMatrix` with features in rows
 #'   and spatial locations in columns. Values must be finite and non-negative.
+#'   If both `colnames(counts)` and `rownames(location)` are supplied, SPARKb
+#'   requires the same unique location IDs in exactly the same order.
 #' @param location Numeric matrix or data frame with exactly two coordinate
 #'   columns and one row for every column of `counts`.
 #' @param covariates Reserved for a future covariate-adjusted scalable test; must
@@ -81,14 +83,19 @@ sparkb <- function(counts,
       call. = FALSE)
   }
   if (!is.numeric(detection_threshold) || length(detection_threshold) != 1L ||
-      !is.finite(detection_threshold)) {
-    stop("`detection_threshold` must be one finite numeric value.", call. = FALSE)
+      !is.finite(detection_threshold) || detection_threshold < 0) {
+    stop("`detection_threshold` must be one finite, non-negative numeric value.", call. = FALSE)
   }
-  if (!is.numeric(fit_maxiter) || length(fit_maxiter) != 1L || fit_maxiter < 1L ||
-      !is.numeric(fit_tol) || length(fit_tol) != 1L || fit_tol <= 0 ||
-      !is.numeric(num_cores) || length(num_cores) != 1L || num_cores < 1L) {
-    stop("`fit_maxiter`, `fit_tol`, and `num_cores` must be positive scalar values.",
+  if (!is.numeric(fit_maxiter) || length(fit_maxiter) != 1L ||
+      !is.finite(fit_maxiter) || fit_maxiter < 1L || fit_maxiter != as.integer(fit_maxiter) ||
+      !is.numeric(fit_tol) || length(fit_tol) != 1L || !is.finite(fit_tol) || fit_tol <= 0 ||
+      !is.numeric(num_cores) || length(num_cores) != 1L ||
+      !is.finite(num_cores) || num_cores < 1L || num_cores != as.integer(num_cores)) {
+    stop("`fit_maxiter` and `num_cores` must be positive integers; `fit_tol` must be a positive finite scalar.",
       call. = FALSE)
+  }
+  if (!is.logical(verbose) || length(verbose) != 1L || is.na(verbose)) {
+    stop("`verbose` must be TRUE or FALSE.", call. = FALSE)
   }
 
   counts <- .validate_counts(counts)
@@ -96,6 +103,7 @@ sparkb <- function(counts,
   if (ncol(counts) != nrow(location)) {
     stop("`ncol(counts)` must equal `nrow(location)`.", call. = FALSE)
   }
+  .validate_location_ids(counts, location)
   if (ncol(counts) < 10L) {
     stop("At least 10 spatial locations are required.", call. = FALSE)
   }
@@ -120,6 +128,7 @@ sparkb <- function(counts,
   detected <- Matrix::rowSums(binary_counts)
   testable <- detected > 0 & detected < ncol(binary_counts)
   status <- rep("constant", nrow(binary_counts))
+  message_detail <- rep(NA_character_, nrow(binary_counts))
   status[testable] <- "fit_failed"
 
   pvalues <- matrix(NA_real_, nrow(binary_counts), length(bandwidths),
@@ -133,9 +142,14 @@ sparkb <- function(counts,
       error = function(e) structure(list(message = conditionMessage(e)), class = "sparkb_fit_error"))
     }, num_cores)
     good_fit <- !vapply(fitted, inherits, logical(1), what = "sparkb_fit_error")
+    if (any(!good_fit)) {
+      failed_idx <- valid_idx[!good_fit]
+      message_detail[failed_idx] <- vapply(fitted[!good_fit], `[[`, character(1), "message")
+    }
     if (any(good_fit)) {
       good_idx <- valid_idx[good_fit]
-      status[good_idx] <- "ok"
+      converged <- vapply(fitted[good_fit], `[[`, logical(1), "converged")
+      status[good_idx] <- ifelse(converged, "ok", "not_converged")
       y_working <- do.call(cbind, lapply(fitted[good_fit], `[[`, "Y"))
       d_squared <- do.call(cbind, lapply(fitted[good_fit], function(x) x$D^2))
       theta <- do.call(cbind, lapply(fitted[good_fit], `[[`, "theta"))
@@ -149,6 +163,7 @@ sparkb <- function(counts,
         )
         if (inherits(kernel_result, "error")) {
           status[good_idx] <- "test_failed"
+          message_detail[good_idx] <- conditionMessage(kernel_result)
           break
         }
         scale <- kernel_result$infoMp1 / (2 * kernel_result$ee)
@@ -167,6 +182,7 @@ sparkb <- function(counts,
     padj_bh = stats::p.adjust(combined, method = "BH"),
     detected_locations = as.integer(detected),
     status = status,
+    message = message_detail,
     row.names = feature_names,
     check.names = FALSE
   )
@@ -196,22 +212,68 @@ sparkb <- function(counts,
   if (!is.numeric(values) || any(!is.finite(values)) || any(values < 0)) {
     stop("`counts` must contain finite, non-negative numeric values.", call. = FALSE)
   }
-  if (is.null(rownames(counts))) rownames(counts) <- paste0("feature_", seq_len(nrow(counts)))
+  if (nrow(counts) < 1L || ncol(counts) < 1L) {
+    stop("`counts` must have at least one feature and one spatial location.", call. = FALSE)
+  }
+  if (is.null(rownames(counts))) {
+    rownames(counts) <- paste0("feature_", seq_len(nrow(counts)))
+  }
+  if (anyNA(rownames(counts)) || any(!nzchar(rownames(counts)))) {
+    stop("`counts` row names cannot contain NA or empty feature IDs.", call. = FALSE)
+  }
   if (anyDuplicated(rownames(counts))) {
-    stop("`counts` row names must be unique.", call. = FALSE)
+    warning("Duplicate feature IDs were made unique with `make.unique()`.", call. = FALSE)
+    rownames(counts) <- make.unique(rownames(counts), sep = "_")
   }
   counts
+}
+
+.validate_location_ids <- function(counts, location) {
+  count_ids <- colnames(counts)
+  location_ids <- rownames(location)
+  if (xor(is.null(count_ids), is.null(location_ids))) {
+    stop("To validate spatial alignment, supply both `colnames(counts)` and `rownames(location)`, or neither.",
+      call. = FALSE)
+  }
+  if (is.null(count_ids)) {
+    warning("Spatial location IDs are absent; SPARKb assumes positional alignment between `counts` columns and `location` rows.",
+      call. = FALSE)
+    return(invisible(NULL))
+  }
+  if (anyNA(count_ids) || any(!nzchar(count_ids)) || anyNA(location_ids) || any(!nzchar(location_ids))) {
+    stop("Spatial location IDs cannot contain NA or empty strings.", call. = FALSE)
+  }
+  if (anyDuplicated(count_ids) || anyDuplicated(location_ids)) {
+    stop("Spatial location IDs must be unique in both `colnames(counts)` and `rownames(location)`.",
+      call. = FALSE)
+  }
+  if (!setequal(count_ids, location_ids)) {
+    only_counts <- utils::head(setdiff(count_ids, location_ids), 3L)
+    only_location <- utils::head(setdiff(location_ids, count_ids), 3L)
+    stop("`colnames(counts)` and `rownames(location)` contain different location IDs",
+      if (length(only_counts)) paste0("; only in counts: ", paste(only_counts, collapse = ", ")) else "",
+      if (length(only_location)) paste0("; only in location: ", paste(only_location, collapse = ", ")) else "",
+      ".", call. = FALSE)
+  }
+  if (!identical(count_ids, location_ids)) {
+    stop("`colnames(counts)` and `rownames(location)` contain the same IDs in different orders. Reorder `location` as `location[colnames(counts), , drop = FALSE]` before running SPARKb.",
+      call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 .select_features <- function(counts, features) {
   if (is.null(features)) return(seq_len(nrow(counts)))
   if (is.character(features)) {
+    if (!length(features) || anyDuplicated(features)) {
+      stop("`features` must contain one or more unique feature names.", call. = FALSE)
+    }
     missing <- setdiff(features, rownames(counts))
     if (length(missing)) stop("Unknown feature(s): ", paste(missing, collapse = ", "), call. = FALSE)
     return(match(features, rownames(counts)))
   }
-  if (is.numeric(features) && all(features == as.integer(features)) &&
-      all(features >= 1L) && all(features <= nrow(counts))) return(as.integer(features))
+  if (is.numeric(features) && length(features) && all(features == as.integer(features)) &&
+      all(features >= 1L) && all(features <= nrow(counts)) && !anyDuplicated(features)) return(as.integer(features))
   stop("`features` must be feature names or valid positive integer indices.", call. = FALSE)
 }
 

@@ -19,7 +19,9 @@ sparkb(
 }
 \arguments{
 \item{counts}{A numeric matrix or a \code{Matrix::dgCMatrix} with features in rows
-and spatial locations in columns. Values must be finite and non-negative.}
+and spatial locations in columns. Values must be finite and non-negative.
+If both \code{colnames(counts)} and \code{rownames(location)} are supplied, SPARKb
+requires the same unique location IDs in exactly the same order.}
 
 \item{location}{Numeric matrix or data frame with exactly two coordinate
 columns and one row for every column of \code{counts}.}
