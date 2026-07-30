@@ -77,6 +77,7 @@ sparkb <- function(counts,
                    fit_maxiter = 500,
                    fit_tol = 1e-5,
                    num_cores = 1,
+				   weights = NULL,
                    verbose = FALSE) {
   if (!is.null(covariates)) {
     stop("`covariates` is not supported by the scalable SPARKb score test in this release.",
@@ -174,7 +175,7 @@ sparkb <- function(counts,
     }
   }
 
-  combined <- apply(pvalues, 1L, .acat)
+  combined <- apply(pvalues, 1L, .acat, Weights = weights)
   result <- data.frame(
     feature = feature_names,
     pvalues,
