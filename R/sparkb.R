@@ -16,8 +16,10 @@
 #' @examples
 #' coords <- cbind(x = seq_len(20), y = rep(0, 20))
 #' adaptive_bandwidths(coords)
-adaptive_bandwidths <- function(location) {
+adaptive_bandwidths <- function(location,
+							   random_seed = 123) {	
   location <- .validate_location(location)
+  set.seed(random_seed)	
   bandwidths <- as.numeric(ComputeAdaptiveBandwidths(location)$kparam)
   names(bandwidths) <- paste0("gaussian_", seq_along(bandwidths))
   bandwidths
@@ -77,6 +79,7 @@ sparkb <- function(counts,
                    fit_maxiter = 500,
                    fit_tol = 1e-5,
                    num_cores = 1,
+				   seed = 123,
 				   weights = NULL,
                    verbose = FALSE) {
   if (!is.null(covariates)) {
@@ -114,7 +117,7 @@ sparkb <- function(counts,
   feature_names <- rownames(counts)
 
   if (is.null(bandwidths)) {
-    bandwidths <- adaptive_bandwidths(location)
+    bandwidths <- adaptive_bandwidths(location, random_seed = seed)
   } else {
     bandwidths <- as.numeric(bandwidths)
     if (length(bandwidths) != 5L || any(!is.finite(bandwidths)) ||
