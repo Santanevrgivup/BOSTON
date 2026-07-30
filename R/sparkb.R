@@ -282,35 +282,62 @@ sparkb <- function(counts,
   parallel::mclapply(indices, fun, mc.cores = as.integer(num_cores))
 }
 
-.acat <- function(pvalues) {
-  pvalues <- pvalues[is.finite(pvalues)]
-  if (!length(pvalues)) return(NA_real_)
-  pvalues[pvalues <= 0] <- 5.55e-17
-  pvalues[pvalues >= 1] <- 0.99
-  statistic <- mean(tan((0.5 - pvalues) * pi))
-  if (statistic > 1e15) return(1 / (pi * statistic))
-  max(5.55e-17, 1 - stats::pcauchy(statistic))
-}
+.acat <- function(Pvals, Weights=NULL){
+	#### check if there is NA
+	if(sum(is.na(Pvals)) > 0){
+		stop("Cannot have NAs in the p-values!")
+	}## end fi
+	
+	#### check if Pvals are between 0 and 1
+	if((sum(Pvals<0) + sum(Pvals>1)) > 0){
+		stop("P-values must be between 0 and 1!")
+	}## end fi
+	
+	#### check if there are pvals that are either exactly 0 or 1.
+	# is.zero <- (sum(Pvals==0) >= 1)
+	# is.one <- (sum(Pvals==1) >= 1)
+	Pvals[which(Pvals == 0)] <- 5.55e-17
+	Pvals[which((1.0 - Pvals)<1e-3)] <- 0.99
+	
+	#if(is.zero && is.one){stop("Cannot have both 0 and 1 p-values!")}## end fi
+	# if(is.zero && is.one){return(NA)}## end fi
+	
+	# if(is.zero){return(1e-300)}## end fi
 
-.sparkb_null_model <- function(y, maxiter, tol) {
-  model0 <- stats::glm(y ~ 1, family = stats::binomial(link = "logit"))
-  .sparkb_fit(model0, maxiter = maxiter, tol = tol)
-}
+	# if(is.one){
+		##warning("There are p-values that are exactly 1!")
+		# return(0.9999)
+	# }## end fi
 
-.sparkb_fit <- function(model0, maxiter, tol) {
-  fit <- .sparkb_ai(model0, num_vc = 1L, maxiter = maxiter, tol = tol)
-  fixed_old <- rep(0, 2L)
-  fixed_new <- 1 * (fit$theta < 1.01 * tol)
-  count <- 1L
-  while (any(fixed_new != fixed_old) && count < maxiter) {
-    count <- count + 1L
-    fixed_old <- fixed_new
-    fit <- .sparkb_ai(model0, num_vc = 1L, fixtau = fixed_old,
-      maxiter = maxiter, tol = tol)
-    fixed_new <- 1 * (fit$theta < 1.01 * tol)
-  }
-  fit
-}
+	#### Default: equal weights. If not, check the validity of the user supplied weights and standadize them.
+	if(is.null(Weights)){
+		Weights <- rep(1/length(Pvals), length(Pvals))
+	}else if (length(Weights) != length(Pvals)){
+		stop("The length of weights should be the same as that of the p-values")
+	}else if (sum(Weights<0) > 0){
+		stop("All the weights must be positive!")
+	}else{
+		Weights <- Weights/sum(Weights)
+	}## end fi
+
+
+	#### check if there are very small non-zero p values
+	is.small <- (Pvals < 1e-17)
+	if(sum(is.small) == 0){
+		cct.stat <- sum(Weights*tan((0.5 - Pvals)*pi))
+	}else{
+		cct.stat <- sum((Weights[is.small]/Pvals[is.small])/pi)
+		cct.stat <- cct.stat + sum(Weights[!is.small]*tan((0.5 - Pvals[!is.small])*pi))
+	}## end fi
+
+	#### check if the test statistic is very large.
+	if(cct.stat > 1e+15){
+		pval <- (1/cct.stat)/pi
+	}else{
+		pval <- 1 - pcauchy(cct.stat)
+	}## end fi
+	return(pval)
+}## end func
 
 .sparkb_ai <- function(model0, num_vc, tau = rep(0.1, num_vc + 1L),
                        fixtau = rep(0, num_vc + 1L), maxiter, tol) {
