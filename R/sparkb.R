@@ -81,7 +81,7 @@ sparkb <- function(counts,
                    num_cores = 1,
 				   seed = 123,
 				   weights = NULL,
-				   padj_method = "BY"，
+				   padj_method = "BY",
                    verbose = FALSE) {
   if (!is.null(covariates)) {
     stop("`covariates` is not supported by the scalable SPARKb score test in this release.",
