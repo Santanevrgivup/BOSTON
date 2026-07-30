@@ -351,6 +351,26 @@ sparkb <- function(counts,
 	return(pval)
 }## end func
 
+.sparkb_null_model <- function(y, maxiter, tol) {
+  model0 <- stats::glm(y ~ 1, family = stats::binomial(link = "logit"))
+  .sparkb_fit(model0, maxiter = maxiter, tol = tol)
+}
+
+.sparkb_fit <- function(model0, maxiter, tol) {
+  fit <- .sparkb_ai(model0, num_vc = 1L, maxiter = maxiter, tol = tol)
+  fixed_old <- rep(0, 2L)
+  fixed_new <- 1 * (fit$theta < 1.01 * tol)
+  count <- 1L
+  while (any(fixed_new != fixed_old) && count < maxiter) {
+    count <- count + 1L
+    fixed_old <- fixed_new
+    fit <- .sparkb_ai(model0, num_vc = 1L, fixtau = fixed_old,
+      maxiter = maxiter, tol = tol)
+    fixed_new <- 1 * (fit$theta < 1.01 * tol)
+  }
+  fit
+}
+
 .sparkb_ai <- function(model0, num_vc, tau = rep(0.1, num_vc + 1L),
                        fixtau = rep(0, num_vc + 1L), maxiter, tol) {
   y <- model0$y
