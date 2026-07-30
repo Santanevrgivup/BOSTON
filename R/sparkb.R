@@ -179,7 +179,14 @@ sparkb <- function(counts,
     }
   }
 
-  combined <- apply(pvalues, 1L, .acat, Weights = weights)
+  combined <- rep(NA_real_, nrow(pvalues))
+  complete_kernel_pvalues <- apply(is.finite(pvalues), 1L, all)
+  if (any(complete_kernel_pvalues)) {
+    combined[complete_kernel_pvalues] <- apply(
+      pvalues[complete_kernel_pvalues, , drop = FALSE], 1L, .acat,
+      Weights = weights
+    )
+  }
   result <- data.frame(
     feature = feature_names,
     pvalues,
