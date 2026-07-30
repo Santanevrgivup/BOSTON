@@ -81,6 +81,7 @@ sparkb <- function(counts,
                    num_cores = 1,
 				   seed = 123,
 				   weights = NULL,
+				   padj_method = "BY"，
                    verbose = FALSE) {
   if (!is.null(covariates)) {
     stop("`covariates` is not supported by the scalable SPARKb score test in this release.",
@@ -127,7 +128,7 @@ sparkb <- function(counts,
     }
     names(bandwidths) <- paste0("gaussian_", seq_along(bandwidths))
   }
-
+  valid_methods <- c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")	
   binary_counts <- Matrix::Matrix(0 + (counts > detection_threshold), sparse = TRUE)
   detected <- Matrix::rowSums(binary_counts)
   testable <- detected > 0 & detected < ncol(binary_counts)
@@ -183,13 +184,20 @@ sparkb <- function(counts,
     feature = feature_names,
     pvalues,
     pvalue = combined,
-    padj_bh = stats::p.adjust(combined, method = "BH"),
+    # padj_bh = stats::p.adjust(combined, method = "BH"),
     detected_locations = as.integer(detected),
     status = status,
     message = message_detail,
     row.names = feature_names,
     check.names = FALSE
   )
+  if (!is.null(padj_method) && padj_method %in% valid_methods) {
+	  message(sprintf("Using p-value adjustment method: %s", padj_method))
+	  padj_col_name <- sprintf("padj_%s", padj_method)
+	  result[[padj_col_name]] <- stats::p.adjust(result$pvalue, method = padj_method)
+  } else {
+	  warning("The 'padj_method' is NULL or unsupported. Skipping p-value adjustment and returning data without the adjusted column.")
+  }
   result <- result[order(result$pvalue, na.last = TRUE), , drop = FALSE]
   class(result) <- c("sparkb_result", "data.frame")
   attr(result, "bandwidths") <- bandwidths
