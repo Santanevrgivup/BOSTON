@@ -59,7 +59,7 @@ adaptive_bandwidths <- function(location, random_seed = 123L,
   }
   result <- ComputeAdaptiveBandwidthsKNN(location, random_seed, k_local,
     n_query, n_pairs, local_quantile, global_quantile)
-  result$kparam <- setNames(as.numeric(result$kparam), paste0("gaussian_", 1:5))
+  result$kparam <- stats::setNames(as.numeric(result$kparam), paste0("gaussian_", 1:5))
   if (isTRUE(result$range_expanded)) {
     warning("Global candidate <= local candidate; upper bandwidth was set to 2 * lower.",
       call. = FALSE)

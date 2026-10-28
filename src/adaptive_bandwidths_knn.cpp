@@ -1,5 +1,5 @@
 #include <Rcpp.h>
-#include "bandwidth_knn_core.hpp"
+#include "bandwidth_knn_core.h"
 
 // [[Rcpp::plugins(cpp11)]]
 
