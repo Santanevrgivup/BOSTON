@@ -1,14 +1,16 @@
-Package: SPARKb
+Package: BOSTON
 Type: Package
 Title: Spatially Variable Feature Detection for Sparse Spatial Omics Data
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: c(
     person("Yuhan", "Zhao", email = "yuhanZhao@stu.xjtu.edu.cn", role = c("aut", "cre")),
     person("Shiquan", "Sun", email = "sqsunsph@xjtu.edu.cn", role = "aut"))
 Description: Detects spatially variable features in sparse spatial omics data
-    with a binomial mixed-model score test. SPARKb binarizes feature counts,
+    with a binomial mixed-model score test. BOSTON binarizes feature counts,
     evaluates five Gaussian spatial kernels selected from the observed spatial
-    sampling density, and combines kernel-specific p-values using ACAT.
+    sampling geometry, and combines kernel-specific p-values using ACAT.
+URL: https://github.com/Santanevrgivup/BOSTON
+BugReports: https://github.com/Santanevrgivup/BOSTON/issues
 License: GPL-3
 Encoding: UTF-8
 Language: en-US

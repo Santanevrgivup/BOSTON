@@ -1,4 +1,4 @@
 library(testthat)
-library(SPARKb)
+library(BOSTON)
 
-test_check("SPARKb")
+test_check("BOSTON")

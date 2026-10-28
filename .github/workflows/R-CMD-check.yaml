@@ -8,6 +8,9 @@ name: R-CMD-check
 
 jobs:
   R-CMD-check:
+    env:
+      OPENBLAS_NUM_THREADS: 1
+      OMP_NUM_THREADS: 1
     runs-on: ${{ matrix.config.os }}
     name: ${{ matrix.config.os }} (${{ matrix.config.r }})
     strategy:

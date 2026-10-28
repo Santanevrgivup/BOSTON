@@ -1,33 +1,75 @@
 #' Select five adaptive Gaussian-kernel bandwidths
 #'
-#' The bandwidth range starts at the larger of the original third Gaussian scale
-#' and half the median distance to the eighth nearest spatial neighbour. It ends
-#' at the original seventh Gaussian scale; when necessary, the upper endpoint is
-#' expanded to preserve an increasing range. Five values equally spaced on the
-#' log10 scale are returned.
+#' Exact duplicate coordinates are collapsed for bandwidth estimation only.
+#' The lower endpoint is half a quantile of the distances to the `k_local`-th
+#' nearest distinct coordinate. The upper endpoint is half a quantile of sampled
+#' pairwise distances. Five bandwidths are equally spaced on the log scale.
+#' When the upper candidate is no larger than the lower candidate, the upper
+#' endpoint is expanded to twice the lower endpoint, with a warning.
+#' Sampling uses a local C++ random generator and leaves R's RNG state unchanged.
+#' Reproducibility is expected within the same toolchain; identical sampled
+#' pairs across different C++ standard libraries are not guaranteed.
 #'
 #' @param location Numeric matrix or data frame with one row per spatial
 #'   location and exactly two coordinate columns.
+#' @param random_seed Non-negative integer seed for coordinate sampling.
+#' @param k_local Positive integer nearest-neighbour rank, excluding self.
+#'   There must be more than `k_local` distinct coordinates.
+#' @param n_query Maximum number of distinct coordinates queried for local radii.
+#' @param n_pairs Number of coordinate pairs sampled with replacement. Each pair
+#'   contains two distinct coordinates.
+#' @param local_quantile,global_quantile Quantile probabilities strictly between
+#'   zero and one for the local radii and sampled pair distances, respectively.
+#' @param diagnostics Return pilot distances, coordinate indices, candidate
+#'   endpoints and the range-expansion flag in addition to the bandwidths.
 #'
 #' @return A named numeric vector of five strictly increasing Gaussian-kernel
-#'   bandwidths.
+#'   bandwidths, or a diagnostic list when `diagnostics = TRUE`. The bandwidths
+#'   are sigma in `exp(-distance^2 / (2 * sigma^2))` and retain coordinate units.
 #' @export
 #'
 #' @examples
 #' coords <- cbind(x = seq_len(20), y = rep(0, 20))
 #' adaptive_bandwidths(coords)
-adaptive_bandwidths <- function(location,
-							   random_seed = 123) {	
+adaptive_bandwidths <- function(location, random_seed = 123L,
+                                k_local = 16L, n_query = 1024L,
+                                n_pairs = 50000L, local_quantile = 0.50,
+                                global_quantile = 0.50, diagnostics = FALSE) {
   location <- .validate_location(location)
-  set.seed(random_seed)	
-  bandwidths <- as.numeric(ComputeAdaptiveBandwidths(location)$kparam)
-  names(bandwidths) <- paste0("gaussian_", seq_along(bandwidths))
-  bandwidths
+  check_integer <- function(value, name, minimum) {
+    if (!is.numeric(value) || length(value) != 1L || !is.finite(value) ||
+        value < minimum || value > .Machine$integer.max || value != floor(value)) {
+      stop(name, " must be an integer >= ", minimum, ".", call. = FALSE)
+    }
+    as.integer(value)
+  }
+  random_seed <- check_integer(random_seed, "random_seed", 0L)
+  k_local <- check_integer(k_local, "k_local", 1L)
+  n_query <- check_integer(n_query, "n_query", 1L)
+  n_pairs <- check_integer(n_pairs, "n_pairs", 1L)
+  for (probability in list(local_quantile, global_quantile)) {
+    if (!is.numeric(probability) || length(probability) != 1L ||
+        !is.finite(probability) || probability <= 0 || probability >= 1) {
+      stop("`local_quantile` and `global_quantile` must be scalars strictly between 0 and 1.",
+        call. = FALSE)
+    }
+  }
+  if (!is.logical(diagnostics) || length(diagnostics) != 1L || is.na(diagnostics)) {
+    stop("`diagnostics` must be TRUE or FALSE.", call. = FALSE)
+  }
+  result <- ComputeAdaptiveBandwidthsKNN(location, random_seed, k_local,
+    n_query, n_pairs, local_quantile, global_quantile)
+  result$kparam <- setNames(as.numeric(result$kparam), paste0("gaussian_", 1:5))
+  if (isTRUE(result$range_expanded)) {
+    warning("Global candidate <= local candidate; upper bandwidth was set to 2 * lower.",
+      call. = FALSE)
+  }
+  if (diagnostics) result else result$kparam
 }
 
 #' Identify spatially variable features in sparse spatial omics data
 #'
-#' `sparkb()` binarizes a feature-by-location count matrix, fits a binomial null
+#' `boston()` binarizes a feature-by-location count matrix, fits a binomial null
 #' model to each non-constant feature, tests five Gaussian spatial kernels, and
 #' combines their p-values using the aggregated Cauchy association test (ACAT).
 #' The default bandwidths are selected adaptively from the supplied coordinates.
@@ -38,7 +80,7 @@ adaptive_bandwidths <- function(location,
 #'
 #' @param counts A numeric matrix or a `Matrix::dgCMatrix` with features in rows
 #'   and spatial locations in columns. Values must be finite and non-negative.
-#'   If both `colnames(counts)` and `rownames(location)` are supplied, SPARKb
+#'   If both `colnames(counts)` and `rownames(location)` are supplied, BOSTON
 #'   requires the same unique location IDs in exactly the same order.
 #' @param location Numeric matrix or data frame with exactly two coordinate
 #'   columns and one row for every column of `counts`.
@@ -53,12 +95,20 @@ adaptive_bandwidths <- function(location,
 #' @param fit_maxiter Maximum iterations of the binomial null-model fit.
 #' @param fit_tol Convergence tolerance of the binomial null-model fit.
 #' @param num_cores Number of cores for fitting independent feature-wise null
-#'   models. On Windows, fitting is performed serially.
+#'   models. On Windows, fitting is performed serially. This does not limit
+#'   OpenMP or BLAS threads; see the README for large-data execution settings.
+#' @param seed Non-negative integer seed passed to [adaptive_bandwidths()].
+#'   Unused when explicit `bandwidths` are supplied.
+#' @param weights Optional non-negative weights for the five kernels, in
+#'   bandwidth order, with positive finite sum. `NULL` uses equal weights.
+#' @param padj_method Adjustment method accepted by [stats::p.adjust()], default
+#'   `"BY"`. The column is named `padj_<method>`, for example `padj_BY`.
+#'   `NULL` or an unsupported method skips adjustment with a warning.
 #' @param verbose Logical; report progress messages.
 #'
-#' @return A `sparkb_result` data frame ordered by combined p-value. It includes
+#' @return A `boston_result` data frame ordered by combined p-value. It includes
 #'   five kernel-specific p-values (`pvalue_gaussian_*`), the ACAT p-value
-#'   (`pvalue`), Benjamini-Hochberg FDR (`padj_bh`), and model status. The
+#'   (`pvalue`), Benjamini-Yekutieli FDR (`padj_BY`, by default), and model status. The
 #'   bandwidths used are stored in `attr(result, "bandwidths")`.
 #' @export
 #'
@@ -69,8 +119,8 @@ adaptive_bandwidths <- function(location,
 #'   spatial = rbinom(40, 1, plogis(5 * (location[, 1] - 0.5))),
 #'   null = rbinom(40, 1, 0.3)
 #' )
-#' sparkb(counts, location, fit_maxiter = 50)
-sparkb <- function(counts,
+#' boston(counts, location, fit_maxiter = 50)
+boston <- function(counts,
                    location,
                    covariates = NULL,
                    features = NULL,
@@ -79,12 +129,12 @@ sparkb <- function(counts,
                    fit_maxiter = 500,
                    fit_tol = 1e-5,
                    num_cores = 1,
-				   seed = 123,
-				   weights = NULL,
-				   padj_method = "BY",
+                   seed = 123L,
+                   weights = NULL,
+                   padj_method = "BY",
                    verbose = FALSE) {
   if (!is.null(covariates)) {
-    stop("`covariates` is not supported by the scalable SPARKb score test in this release.",
+    stop("`covariates` is not supported by the scalable BOSTON score test in this release.",
       call. = FALSE)
   }
   if (!is.numeric(detection_threshold) || length(detection_threshold) != 1L ||
@@ -142,11 +192,11 @@ sparkb <- function(counts,
     valid_idx <- which(testable)
     if (verbose) message("Fitting ", length(valid_idx), " binomial null models.")
     fitted <- .map_features(valid_idx, function(i) {
-      tryCatch(.sparkb_null_model(as.numeric(binary_counts[i, ]),
+      tryCatch(.boston_null_model(as.numeric(binary_counts[i, ]),
         maxiter = as.integer(fit_maxiter), tol = fit_tol),
-      error = function(e) structure(list(message = conditionMessage(e)), class = "sparkb_fit_error"))
+      error = function(e) structure(list(message = conditionMessage(e)), class = "boston_fit_error"))
     }, num_cores)
-    good_fit <- !vapply(fitted, inherits, logical(1), what = "sparkb_fit_error")
+    good_fit <- !vapply(fitted, inherits, logical(1), what = "boston_fit_error")
     if (any(!good_fit)) {
       failed_idx <- valid_idx[!good_fit]
       message_detail[failed_idx] <- vapply(fitted[!good_fit], `[[`, character(1), "message")
@@ -206,7 +256,7 @@ sparkb <- function(counts,
 	  warning("The 'padj_method' is NULL or unsupported. Skipping p-value adjustment and returning data without the adjusted column.")
   }
   result <- result[order(result$pvalue, na.last = TRUE), , drop = FALSE]
-  class(result) <- c("sparkb_result", "data.frame")
+  class(result) <- c("boston_result", "data.frame")
   attr(result, "bandwidths") <- bandwidths
   attr(result, "detection_threshold") <- detection_threshold
   result
@@ -255,7 +305,7 @@ sparkb <- function(counts,
       call. = FALSE)
   }
   if (is.null(count_ids)) {
-    warning("Spatial location IDs are absent; SPARKb assumes positional alignment between `counts` columns and `location` rows.",
+    warning("Spatial location IDs are absent; BOSTON assumes positional alignment between `counts` columns and `location` rows.",
       call. = FALSE)
     return(invisible(NULL))
   }
@@ -275,7 +325,7 @@ sparkb <- function(counts,
       ".", call. = FALSE)
   }
   if (!identical(count_ids, location_ids)) {
-    stop("`colnames(counts)` and `rownames(location)` contain the same IDs in different orders. Reorder `location` as `location[colnames(counts), , drop = FALSE]` before running SPARKb.",
+    stop("`colnames(counts)` and `rownames(location)` contain the same IDs in different orders. Reorder `location` as `location[colnames(counts), , drop = FALSE]` before running BOSTON.",
       call. = FALSE)
   }
   invisible(NULL)
@@ -358,27 +408,27 @@ sparkb <- function(counts,
 	return(pval)
 }## end func
 
-.sparkb_null_model <- function(y, maxiter, tol) {
+.boston_null_model <- function(y, maxiter, tol) {
   model0 <- stats::glm(y ~ 1, family = stats::binomial(link = "logit"))
-  .sparkb_fit(model0, maxiter = maxiter, tol = tol)
+  .boston_fit(model0, maxiter = maxiter, tol = tol)
 }
 
-.sparkb_fit <- function(model0, maxiter, tol) {
-  fit <- .sparkb_ai(model0, num_vc = 1L, maxiter = maxiter, tol = tol)
+.boston_fit <- function(model0, maxiter, tol) {
+  fit <- .boston_ai(model0, num_vc = 1L, maxiter = maxiter, tol = tol)
   fixed_old <- rep(0, 2L)
   fixed_new <- 1 * (fit$theta < 1.01 * tol)
   count <- 1L
   while (any(fixed_new != fixed_old) && count < maxiter) {
     count <- count + 1L
     fixed_old <- fixed_new
-    fit <- .sparkb_ai(model0, num_vc = 1L, fixtau = fixed_old,
+    fit <- .boston_ai(model0, num_vc = 1L, fixtau = fixed_old,
       maxiter = maxiter, tol = tol)
     fixed_new <- 1 * (fit$theta < 1.01 * tol)
   }
   fit
 }
 
-.sparkb_ai <- function(model0, num_vc, tau = rep(0.1, num_vc + 1L),
+.boston_ai <- function(model0, num_vc, tau = rep(0.1, num_vc + 1L),
                        fixtau = rep(0, num_vc + 1L), maxiter, tol) {
   y <- model0$y
   n <- length(y)

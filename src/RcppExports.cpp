@@ -11,20 +11,25 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
-// ComputeAdaptiveBandwidths
-SEXP ComputeAdaptiveBandwidths(SEXP xin);
-RcppExport SEXP _SPARKb_ComputeAdaptiveBandwidths(SEXP xinSEXP) {
+// ComputeAdaptiveBandwidthsKNN
+Rcpp::List ComputeAdaptiveBandwidthsKNN(Rcpp::NumericMatrix xin, int random_seed, int k_local, int n_query, int n_pairs, double local_quantile, double global_quantile);
+RcppExport SEXP _BOSTON_ComputeAdaptiveBandwidthsKNN(SEXP xinSEXP, SEXP random_seedSEXP, SEXP k_localSEXP, SEXP n_querySEXP, SEXP n_pairsSEXP, SEXP local_quantileSEXP, SEXP global_quantileSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< SEXP >::type xin(xinSEXP);
-    rcpp_result_gen = Rcpp::wrap(ComputeAdaptiveBandwidths(xin));
+    Rcpp::traits::input_parameter< Rcpp::NumericMatrix >::type xin(xinSEXP);
+    Rcpp::traits::input_parameter< int >::type random_seed(random_seedSEXP);
+    Rcpp::traits::input_parameter< int >::type k_local(k_localSEXP);
+    Rcpp::traits::input_parameter< int >::type n_query(n_querySEXP);
+    Rcpp::traits::input_parameter< int >::type n_pairs(n_pairsSEXP);
+    Rcpp::traits::input_parameter< double >::type local_quantile(local_quantileSEXP);
+    Rcpp::traits::input_parameter< double >::type global_quantile(global_quantileSEXP);
+    rcpp_result_gen = Rcpp::wrap(ComputeAdaptiveBandwidthsKNN(xin, random_seed, k_local, n_query, n_pairs, local_quantile, global_quantile));
     return rcpp_result_gen;
 END_RCPP
 }
 // fastComputeQuantitiesWithoutCVT
 SEXP fastComputeQuantitiesWithoutCVT(SEXP Yin, SEXP locationin, SEXP kernel_paramin, SEXP Din, SEXP tauin, SEXP kernel_typein);
-RcppExport SEXP _SPARKb_fastComputeQuantitiesWithoutCVT(SEXP YinSEXP, SEXP locationinSEXP, SEXP kernel_paraminSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP kernel_typeinSEXP) {
+RcppExport SEXP _BOSTON_fastComputeQuantitiesWithoutCVT(SEXP YinSEXP, SEXP locationinSEXP, SEXP kernel_paraminSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP kernel_typeinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -40,7 +45,7 @@ END_RCPP
 }
 // ComputeTestQuantRcpp_nocov
 SEXP ComputeTestQuantRcpp_nocov(SEXP yin, SEXP Pyin, SEXP cov_matin, SEXP Din, SEXP tauin);
-RcppExport SEXP _SPARKb_ComputeTestQuantRcpp_nocov(SEXP yinSEXP, SEXP PyinSEXP, SEXP cov_matinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
+RcppExport SEXP _BOSTON_ComputeTestQuantRcpp_nocov(SEXP yinSEXP, SEXP PyinSEXP, SEXP cov_matinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -55,7 +60,7 @@ END_RCPP
 }
 // CovariatesAI
 SEXP CovariatesAI(SEXP Yin, SEXP Xin, SEXP Din, SEXP tauin, SEXP fixtauin, SEXP tolin);
-RcppExport SEXP _SPARKb_CovariatesAI(SEXP YinSEXP, SEXP XinSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP fixtauinSEXP, SEXP tolinSEXP) {
+RcppExport SEXP _BOSTON_CovariatesAI(SEXP YinSEXP, SEXP XinSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP fixtauinSEXP, SEXP tolinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -71,7 +76,7 @@ END_RCPP
 }
 // noCovariatesAI
 SEXP noCovariatesAI(SEXP Yin, SEXP Xin, SEXP Din, SEXP tauin, SEXP fixtauin, SEXP tolin);
-RcppExport SEXP _SPARKb_noCovariatesAI(SEXP YinSEXP, SEXP XinSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP fixtauinSEXP, SEXP tolinSEXP) {
+RcppExport SEXP _BOSTON_noCovariatesAI(SEXP YinSEXP, SEXP XinSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP fixtauinSEXP, SEXP tolinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -87,7 +92,7 @@ END_RCPP
 }
 // FastTraceComputeTestQuantRcpp_cov
 SEXP FastTraceComputeTestQuantRcpp_cov(SEXP Pyin, SEXP Xin, SEXP Kin, SEXP Din, SEXP tauin);
-RcppExport SEXP _SPARKb_FastTraceComputeTestQuantRcpp_cov(SEXP PyinSEXP, SEXP XinSEXP, SEXP KinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
+RcppExport SEXP _BOSTON_FastTraceComputeTestQuantRcpp_cov(SEXP PyinSEXP, SEXP XinSEXP, SEXP KinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -102,7 +107,7 @@ END_RCPP
 }
 // ComputeTestQuantRcpp_cov
 SEXP ComputeTestQuantRcpp_cov(SEXP yin, SEXP Pyin, SEXP Xin, SEXP cov_matin, SEXP Din, SEXP tauin);
-RcppExport SEXP _SPARKb_ComputeTestQuantRcpp_cov(SEXP yinSEXP, SEXP PyinSEXP, SEXP XinSEXP, SEXP cov_matinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
+RcppExport SEXP _BOSTON_ComputeTestQuantRcpp_cov(SEXP yinSEXP, SEXP PyinSEXP, SEXP XinSEXP, SEXP cov_matinSEXP, SEXP DinSEXP, SEXP tauinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -118,7 +123,7 @@ END_RCPP
 }
 // ComputeKernelParamLessMem
 SEXP ComputeKernelParamLessMem(SEXP xin);
-RcppExport SEXP _SPARKb_ComputeKernelParamLessMem(SEXP xinSEXP) {
+RcppExport SEXP _BOSTON_ComputeKernelParamLessMem(SEXP xinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -129,7 +134,7 @@ END_RCPP
 }
 // ComputeTestQuantRcpp_RLSKAT
 SEXP ComputeTestQuantRcpp_RLSKAT(SEXP cov_matin, SEXP Xdaggerin, SEXP covariatesin, SEXP norm_countsin);
-RcppExport SEXP _SPARKb_ComputeTestQuantRcpp_RLSKAT(SEXP cov_matinSEXP, SEXP XdaggerinSEXP, SEXP covariatesinSEXP, SEXP norm_countsinSEXP) {
+RcppExport SEXP _BOSTON_ComputeTestQuantRcpp_RLSKAT(SEXP cov_matinSEXP, SEXP XdaggerinSEXP, SEXP covariatesinSEXP, SEXP norm_countsinSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -143,19 +148,19 @@ END_RCPP
 }
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_SPARKb_ComputeAdaptiveBandwidths", (DL_FUNC) &_SPARKb_ComputeAdaptiveBandwidths, 1},
-    {"_SPARKb_fastComputeQuantitiesWithoutCVT", (DL_FUNC) &_SPARKb_fastComputeQuantitiesWithoutCVT, 6},
-    {"_SPARKb_ComputeTestQuantRcpp_nocov", (DL_FUNC) &_SPARKb_ComputeTestQuantRcpp_nocov, 5},
-    {"_SPARKb_CovariatesAI", (DL_FUNC) &_SPARKb_CovariatesAI, 6},
-    {"_SPARKb_noCovariatesAI", (DL_FUNC) &_SPARKb_noCovariatesAI, 6},
-    {"_SPARKb_FastTraceComputeTestQuantRcpp_cov", (DL_FUNC) &_SPARKb_FastTraceComputeTestQuantRcpp_cov, 5},
-    {"_SPARKb_ComputeTestQuantRcpp_cov", (DL_FUNC) &_SPARKb_ComputeTestQuantRcpp_cov, 6},
-    {"_SPARKb_ComputeKernelParamLessMem", (DL_FUNC) &_SPARKb_ComputeKernelParamLessMem, 1},
-    {"_SPARKb_ComputeTestQuantRcpp_RLSKAT", (DL_FUNC) &_SPARKb_ComputeTestQuantRcpp_RLSKAT, 4},
+    {"_BOSTON_ComputeAdaptiveBandwidthsKNN", (DL_FUNC) &_BOSTON_ComputeAdaptiveBandwidthsKNN, 7},
+    {"_BOSTON_fastComputeQuantitiesWithoutCVT", (DL_FUNC) &_BOSTON_fastComputeQuantitiesWithoutCVT, 6},
+    {"_BOSTON_ComputeTestQuantRcpp_nocov", (DL_FUNC) &_BOSTON_ComputeTestQuantRcpp_nocov, 5},
+    {"_BOSTON_CovariatesAI", (DL_FUNC) &_BOSTON_CovariatesAI, 6},
+    {"_BOSTON_noCovariatesAI", (DL_FUNC) &_BOSTON_noCovariatesAI, 6},
+    {"_BOSTON_FastTraceComputeTestQuantRcpp_cov", (DL_FUNC) &_BOSTON_FastTraceComputeTestQuantRcpp_cov, 5},
+    {"_BOSTON_ComputeTestQuantRcpp_cov", (DL_FUNC) &_BOSTON_ComputeTestQuantRcpp_cov, 6},
+    {"_BOSTON_ComputeKernelParamLessMem", (DL_FUNC) &_BOSTON_ComputeKernelParamLessMem, 1},
+    {"_BOSTON_ComputeTestQuantRcpp_RLSKAT", (DL_FUNC) &_BOSTON_ComputeTestQuantRcpp_RLSKAT, 4},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_SPARKb(DllInfo *dll) {
+RcppExport void R_init_BOSTON(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }
