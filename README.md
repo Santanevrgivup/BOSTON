@@ -2,7 +2,7 @@
 
 **Binary-based inference fOr large-Scale sparse spaTial Omics data aNalysis**
 detects spatially variable features from binary detection patterns in spatial
-omics data. It fits an intercept-only binomial null model, tests five Gaussian
+omics data. It fits a binomial null model with optional covariates, tests Gaussian
 spatial kernels, combines their p-values with ACAT, and applies BY adjustment
 by default. BOSTON succeeds the independent SPARKb package.
 
@@ -42,9 +42,64 @@ unique and in exactly the same order. Both may be omitted, with a warning
 that alignment is assumed. Coordinate axes must use commensurate units;
 automatic axis-wise standardization is not performed.
 
-`covariates` is reserved and must be `NULL` in this release. At least 10
+`covariates` accepts a numeric matrix or data.frame containing numeric, factor
+or logical predictors. An intercept is automatic; the design must have full
+column rank and no missing values. Covariate rows must match count column IDs
+in order. Character categories should be explicitly converted to factors.
+At least 10
 observations are required for testing. The default bandwidth pilot additionally
 requires more than 16 distinct coordinates.
+
+## Covariate-adjusted analysis
+
+```r
+covariates <- data.frame(log_depth = log1p(Matrix::colSums(counts)),
+                        row.names = colnames(counts))
+adjusted <- boston(counts, location, covariates = covariates)
+```
+
+Use this only when the predictor varies and matches the scientific adjustment
+question; a constant or redundant column is rejected. Covariate-adjusted tests
+target residual spatial structure after adjustment, so domains or cell types
+may remove biological signals of interest. Technical depth adjustment needs
+assay-specific justification; a counts-derived total is not automatically the
+correct confounder measure. The Gaussian covariate path uses row-block kernel
+calculations and a rank-q correction, not a dense n-by-n projection matrix.
+
+## Custom kernels
+
+```r
+bw <- adaptive_bandwidths(location)
+k <- exp(-as.matrix(dist(location))^2 / (2 * bw[3]^2))
+dimnames(k) <- list(colnames(counts), colnames(counts))
+custom <- boston(counts, location, covariates = covariates,
+                 kernels = list(gaussian_reference = k))
+```
+
+Use this explicit-matrix example only on small data. Custom kernels replace
+the default Gaussian set; do not also pass `bandwidths`. A single matrix or a
+named list is accepted. Every matrix must be nonzero, symmetric and PSD, with
+both axes aligned to count IDs. Exact eigenvalue validation limits this dense
+interface to 2000 locations. Built-in Gaussian kernels remain available beyond
+that limit. Kernel choice must be prespecified or independently justified;
+constructing it from a tested feature's measurements can invalidate inference.
+The original ACAT function is unchanged; `weights` must match the supplied
+kernel count and is validated before fitting.
+
+## Complete real-data tutorial
+
+The installed [workflow](inst/tutorials/real-data-workflow.md) and
+[executable R script](inst/examples/run_real_data.R) cover input preparation,
+location alignment, detection QC, covariates, model failures, global FDR,
+spatial plotting and reproducible output. Locate the script with:
+
+```r
+system.file("examples", "run_real_data.R", package = "BOSTON")
+```
+
+The tutorial includes a legacy Slide-tags ATAC route and a plain-list input
+route. Its default run is an explicitly labelled 20-feature demonstration,
+with a documented full-analysis option.
 
 ## Adaptive bandwidths
 
@@ -78,7 +133,8 @@ No automatic grid or removal of near-duplicate coordinates is performed.
 ## Results and multiple testing
 
 `boston()` returns a `boston_result` data frame ordered by combined p-value,
-containing `feature`, `pvalue_gaussian_1` through `pvalue_gaussian_5`, `pvalue`,
+containing `feature`, `pvalue_gaussian_1` through `pvalue_gaussian_5`
+(or `pvalue_<custom kernel name>`), `pvalue`,
 `detected_locations`, `status`, `message`, and `padj_BY` by default.
 
 ```r
@@ -87,9 +143,9 @@ result_bh <- boston(counts, location, bandwidths = bandwidths, padj_method = "BH
 ```
 
 `weights = NULL` gives equal ACAT weights. Supplied weights correspond to the
-five bandwidths and should be finite, non-negative, and have a positive sum.
+kernel order and must be finite, non-negative, and have a positive sum.
 The inherited ACAT implementation is retained unchanged, including its handling
-of boundary p-values. All five kernel p-values must be finite before combination.
+of boundary p-values. All supplied kernel p-values must be finite before combination.
 Constant or failed features retain an NA combined p-value; inspect `status` and
 `message`. `not_converged` rows may still contain p-values and require review.
 Adjustment is over the non-missing p-values supplied in a call. If you split

@@ -27,6 +27,38 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// BOSTONCovariateAI
+Rcpp::List BOSTONCovariateAI(const arma::vec& y, const arma::mat& x, const arma::vec& d2, arma::vec tau, bool fix_nugget, double tol);
+RcppExport SEXP _BOSTON_BOSTONCovariateAI(SEXP ySEXP, SEXP xSEXP, SEXP d2SEXP, SEXP tauSEXP, SEXP fix_nuggetSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type d2(d2SEXP);
+    Rcpp::traits::input_parameter< arma::vec >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< bool >::type fix_nugget(fix_nuggetSEXP);
+    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(BOSTONCovariateAI(y, x, d2, tau, fix_nugget, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// BOSTONCovariateScore
+Rcpp::List BOSTONCovariateScore(const arma::mat& y, const arma::mat& location, double sigma, const arma::mat& d2, const arma::mat& tau, const arma::mat& x, SEXP kernel, int block_size);
+RcppExport SEXP _BOSTON_BOSTONCovariateScore(SEXP ySEXP, SEXP locationSEXP, SEXP sigmaSEXP, SEXP d2SEXP, SEXP tauSEXP, SEXP xSEXP, SEXP kernelSEXP, SEXP block_sizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type location(locationSEXP);
+    Rcpp::traits::input_parameter< double >::type sigma(sigmaSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type d2(d2SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type kernel(kernelSEXP);
+    Rcpp::traits::input_parameter< int >::type block_size(block_sizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(BOSTONCovariateScore(y, location, sigma, d2, tau, x, kernel, block_size));
+    return rcpp_result_gen;
+END_RCPP
+}
 // fastComputeQuantitiesWithoutCVT
 SEXP fastComputeQuantitiesWithoutCVT(SEXP Yin, SEXP locationin, SEXP kernel_paramin, SEXP Din, SEXP tauin, SEXP kernel_typein);
 RcppExport SEXP _BOSTON_fastComputeQuantitiesWithoutCVT(SEXP YinSEXP, SEXP locationinSEXP, SEXP kernel_paraminSEXP, SEXP DinSEXP, SEXP tauinSEXP, SEXP kernel_typeinSEXP) {
@@ -149,6 +181,8 @@ END_RCPP
 
 static const R_CallMethodDef CallEntries[] = {
     {"_BOSTON_ComputeAdaptiveBandwidthsKNN", (DL_FUNC) &_BOSTON_ComputeAdaptiveBandwidthsKNN, 7},
+    {"_BOSTON_BOSTONCovariateAI", (DL_FUNC) &_BOSTON_BOSTONCovariateAI, 6},
+    {"_BOSTON_BOSTONCovariateScore", (DL_FUNC) &_BOSTON_BOSTONCovariateScore, 8},
     {"_BOSTON_fastComputeQuantitiesWithoutCVT", (DL_FUNC) &_BOSTON_fastComputeQuantitiesWithoutCVT, 6},
     {"_BOSTON_ComputeTestQuantRcpp_nocov", (DL_FUNC) &_BOSTON_ComputeTestQuantRcpp_nocov, 5},
     {"_BOSTON_CovariatesAI", (DL_FUNC) &_BOSTON_CovariatesAI, 6},

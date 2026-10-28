@@ -8,7 +8,9 @@
 #include <stdlib.h>
 #include <cstring>
 #include <ctime>
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 #include <algorithm> 
 // 11
 #ifndef _CLOCK_T_DEFINED

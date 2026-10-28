@@ -70,13 +70,15 @@ adaptive_bandwidths <- function(location, random_seed = 123L,
 #' Identify spatially variable features in sparse spatial omics data
 #'
 #' `boston()` binarizes a feature-by-location count matrix, fits a binomial null
-#' model to each non-constant feature, tests five Gaussian spatial kernels, and
+#' model to each non-constant feature, tests Gaussian or supplied spatial kernels, and
 #' combines their p-values using the aggregated Cauchy association test (ACAT).
 #' The default bandwidths are selected adaptively from the supplied coordinates.
 #'
-#' The scalable score-test implementation currently supports an intercept-only
-#' null model. `covariates` is retained in the interface for forward compatibility
-#' and must be `NULL` in this release.
+#' An intercept is included automatically. With covariates, testing concerns
+#' residual spatial structure conditional on the supplied design. Numeric
+#' matrices or data.frames with numeric, factor or logical columns are accepted.
+#' Covariate-adjusted Gaussian testing uses row-block kernel calculations and
+#' rank-q projection updates, without constructing a dense projection matrix.
 #'
 #' @param counts A numeric matrix or a `Matrix::dgCMatrix` with features in rows
 #'   and spatial locations in columns. Values must be finite and non-negative.
@@ -84,8 +86,11 @@ adaptive_bandwidths <- function(location, random_seed = 123L,
 #'   requires the same unique location IDs in exactly the same order.
 #' @param location Numeric matrix or data frame with exactly two coordinate
 #'   columns and one row for every column of `counts`.
-#' @param covariates Reserved for a future covariate-adjusted scalable test; must
-#'   be `NULL`.
+#' @param covariates Optional location-by-covariate numeric matrix or data.frame.
+#'   Supply non-intercept predictors only, without missing values. An intercept
+#'   is added and the resulting design must have full column rank. Row IDs must
+#'   match count column IDs in order when IDs are used. Character columns should
+#'   be explicitly converted to factors. `NULL` fits an intercept-only model.
 #' @param features Optional feature names or integer indices to test. By default,
 #'   all features are tested.
 #' @param bandwidths Optional numeric vector of exactly five positive Gaussian
@@ -99,15 +104,22 @@ adaptive_bandwidths <- function(location, random_seed = 123L,
 #'   OpenMP or BLAS threads; see the README for large-data execution settings.
 #' @param seed Non-negative integer seed passed to [adaptive_bandwidths()].
 #'   Unused when explicit `bandwidths` are supplied.
-#' @param weights Optional non-negative weights for the five kernels, in
+#' @param weights Optional finite non-negative weights for the kernels, in
 #'   bandwidth order, with positive finite sum. `NULL` uses equal weights.
 #' @param padj_method Adjustment method accepted by [stats::p.adjust()], default
 #'   `"BY"`. The column is named `padj_<method>`, for example `padj_BY`.
 #'   `NULL` or an unsupported method skips adjustment with a warning.
 #' @param verbose Logical; report progress messages.
+#' @param kernels Optional nonzero positive-semidefinite numeric matrix, or
+#'   named list of such matrices, replacing the five Gaussian kernels. Both
+#'   axes must match count column IDs in order. Dense custom kernels are limited
+#'   to 2000 locations for exact eigenvalue validation. Names must start with a
+#'   letter and contain only letters, digits or underscores. With custom kernels,
+#'   `bandwidths` must be `NULL` and `seed` is unused. Constant/projected-out
+#'   kernels yield `test_failed`, not a significant p-value.
 #'
 #' @return A `boston_result` data frame ordered by combined p-value. It includes
-#'   five kernel-specific p-values (`pvalue_gaussian_*`), the ACAT p-value
+#'   kernel-specific p-values (`pvalue_gaussian_*` or `pvalue_<kernel name>`), the ACAT p-value
 #'   (`pvalue`), Benjamini-Yekutieli FDR (`padj_BY`, by default), and model status. The
 #'   bandwidths used are stored in `attr(result, "bandwidths")`.
 #' @export
@@ -132,11 +144,8 @@ boston <- function(counts,
                    seed = 123L,
                    weights = NULL,
                    padj_method = "BY",
-                   verbose = FALSE) {
-  if (!is.null(covariates)) {
-    stop("`covariates` is not supported by the scalable BOSTON score test in this release.",
-      call. = FALSE)
-  }
+                   verbose = FALSE,
+                   kernels = NULL) {
   if (!is.numeric(detection_threshold) || length(detection_threshold) != 1L ||
       !is.finite(detection_threshold) || detection_threshold < 0) {
     stop("`detection_threshold` must be one finite, non-negative numeric value.", call. = FALSE)
@@ -162,12 +171,19 @@ boston <- function(counts,
   if (ncol(counts) < 10L) {
     stop("At least 10 spatial locations are required.", call. = FALSE)
   }
+  design <- .validate_covariates(covariates, counts)
+  kernels <- .validate_kernels(kernels, counts)
+  if (!is.null(kernels) && !is.null(bandwidths)) {
+    stop("Supply `kernels` or `bandwidths`, not both.", call. = FALSE)
+  }
 
   selected <- .select_features(counts, features)
   counts <- counts[selected, , drop = FALSE]
   feature_names <- rownames(counts)
 
-  if (is.null(bandwidths)) {
+  if (!is.null(kernels)) {
+    kernel_names <- names(kernels)
+  } else if (is.null(bandwidths)) {
     bandwidths <- adaptive_bandwidths(location, random_seed = seed)
   } else {
     bandwidths <- as.numeric(bandwidths)
@@ -178,6 +194,12 @@ boston <- function(counts,
     }
     names(bandwidths) <- paste0("gaussian_", seq_along(bandwidths))
   }
+  if (is.null(kernels)) kernel_names <- names(bandwidths)
+  if (!is.null(weights) && (!is.numeric(weights) || length(weights) != length(kernel_names) ||
+      any(!is.finite(weights)) || any(weights < 0) || !is.finite(sum(weights)) || sum(weights) <= 0)) {
+    stop("`weights` must have one finite non-negative value per kernel and a positive finite sum.",
+      call. = FALSE)
+  }
   valid_methods <- c("holm", "hochberg", "hommel", "bonferroni", "BH", "BY", "fdr", "none")	
   binary_counts <- Matrix::Matrix(0 + (counts > detection_threshold), sparse = TRUE)
   detected <- Matrix::rowSums(binary_counts)
@@ -186,14 +208,14 @@ boston <- function(counts,
   message_detail <- rep(NA_character_, nrow(binary_counts))
   status[testable] <- "fit_failed"
 
-  pvalues <- matrix(NA_real_, nrow(binary_counts), length(bandwidths),
-    dimnames = list(feature_names, paste0("pvalue_", names(bandwidths))))
+  pvalues <- matrix(NA_real_, nrow(binary_counts), length(kernel_names),
+    dimnames = list(feature_names, paste0("pvalue_", kernel_names)))
   if (any(testable)) {
     valid_idx <- which(testable)
     if (verbose) message("Fitting ", length(valid_idx), " binomial null models.")
     fitted <- .map_features(valid_idx, function(i) {
       tryCatch(.boston_null_model(as.numeric(binary_counts[i, ]),
-        maxiter = as.integer(fit_maxiter), tol = fit_tol),
+        maxiter = as.integer(fit_maxiter), tol = fit_tol, design = design),
       error = function(e) structure(list(message = conditionMessage(e)), class = "boston_fit_error"))
     }, num_cores)
     good_fit <- !vapply(fitted, inherits, logical(1), what = "boston_fit_error")
@@ -209,11 +231,19 @@ boston <- function(counts,
       d_squared <- do.call(cbind, lapply(fitted[good_fit], function(x) x$D^2))
       theta <- do.call(cbind, lapply(fitted[good_fit], `[[`, "theta"))
 
-      if (verbose) message("Testing five Gaussian kernels.")
-      for (k in seq_along(bandwidths)) {
+      if (verbose) message("Testing ", length(kernel_names), " spatial kernels.")
+      score_design <- if (is.null(design)) matrix(1, ncol(binary_counts), 1) else design
+      for (k in seq_along(kernel_names)) {
         kernel_result <- tryCatch(
-          fastComputeQuantitiesWithoutCVT(y_working, location, bandwidths[k],
-            d_squared, theta, "gaussian"),
+          if (is.null(design) && is.null(kernels)) {
+            fastComputeQuantitiesWithoutCVT(y_working, location, bandwidths[k],
+              d_squared, theta, "gaussian")
+          } else {
+            BOSTONCovariateScore(y_working, location,
+              if (is.null(kernels)) bandwidths[k] else 1,
+              d_squared, theta, score_design,
+              if (is.null(kernels)) NULL else kernels[[k]])
+          },
           error = function(e) e
         )
         if (inherits(kernel_result, "error")) {
@@ -225,6 +255,15 @@ boston <- function(counts,
         df <- 2 * kernel_result$ee^2 / kernel_result$infoMp1
         pvalues[good_idx, k] <- stats::pchisq(kernel_result$S0 / scale, df,
           lower.tail = FALSE)
+        invalid <- !is.finite(pvalues[good_idx, k]) | !is.finite(scale) |
+          !is.finite(df) | scale <= 0 | df <= 0 | kernel_result$ee <= 0 |
+          kernel_result$S0 < 0
+        if (any(invalid)) {
+          bad <- good_idx[invalid]
+          pvalues[bad, k] <- NA_real_
+          status[bad] <- "test_failed"
+          message_detail[bad] <- paste0("Invalid score moments or degenerate projected kernel: ", kernel_names[k])
+        }
       }
     }
   }
@@ -259,6 +298,8 @@ boston <- function(counts,
   class(result) <- c("boston_result", "data.frame")
   attr(result, "bandwidths") <- bandwidths
   attr(result, "detection_threshold") <- detection_threshold
+  attr(result, "kernel_names") <- kernel_names
+  attr(result, "covariate_columns") <- if (is.null(design)) "(Intercept)" else colnames(design)
   result
 }
 
@@ -408,8 +449,14 @@ boston <- function(counts,
 	return(pval)
 }## end func
 
-.boston_null_model <- function(y, maxiter, tol) {
-  model0 <- stats::glm(y ~ 1, family = stats::binomial(link = "logit"))
+.boston_null_model <- function(y, maxiter, tol, design = NULL) {
+  model0 <- if (is.null(design)) {
+    stats::glm(y ~ 1, family = stats::binomial(link = "logit"))
+  } else {
+    model <- stats::glm.fit(design, y, family = stats::binomial(link = "logit"))
+    model$x <- design
+    model
+  }
   .boston_fit(model0, maxiter = maxiter, tol = tol)
 }
 
@@ -438,7 +485,8 @@ boston <- function(counts,
   derivative <- family$mu.eta(eta)
   d <- derivative / sqrt(family$variance(mu))
   y_working <- eta + (y - mu) / derivative
-  x <- stats::model.matrix(model0)
+  x <- if (!is.null(model0$x)) model0$x else stats::model.matrix(model0)
+  has_covariates <- ncol(x) > 1L
   alpha <- model0$coefficients
 
   tau[1] <- 1
@@ -448,19 +496,31 @@ boston <- function(counts,
     tau[free] <- min(0.9, stats::var(y_working) / (num_vc + 1L))
     h_inverse <- 1 / (tau[1] / d^2 + tau[2])
     xhix <- sum(h_inverse)
-    py_initial <- h_inverse * y_working - h_inverse * sum(h_inverse * y_working) / xhix
-    diag_p <- h_inverse - h_inverse^2 / xhix
-    papy <- h_inverse * py_initial - h_inverse * sum(h_inverse * py_initial) / xhix
+    if (has_covariates) {
+      u <- x * h_inverse
+      a <- solve(crossprod(x, u))
+      project <- function(v) h_inverse * v - as.numeric(u %*% (a %*% crossprod(u, v)))
+      py_initial <- project(y_working)
+      diag_p <- h_inverse - rowSums((u %*% a) * u)
+      papy <- project(py_initial)
+    } else {
+      py_initial <- h_inverse * y_working - h_inverse * sum(h_inverse * y_working) / xhix
+      diag_p <- h_inverse - h_inverse^2 / xhix
+      papy <- h_inverse * py_initial - h_inverse * sum(h_inverse * py_initial) / xhix
+    }
     tau[free] <- max(0, tau[free] + tau[free]^2 *
       (sum(y_working * papy) - sum(diag_p)) / n)
   }
   initial_tau <- tau
   tau[tau > 10 | tau < 0] <- 0.5
   model1 <- NULL
+  covariate_converged <- FALSE
   for (iteration in seq_len(maxiter)) {
     alpha_old <- alpha
     tau_old <- tau
-    model1 <- noCovariatesAI(y_working, x, d^2, tau, fixtau, tol)
+    model1 <- if (has_covariates) {
+      BOSTONCovariateAI(y_working, x, d^2, tau, fixtau[2] != 0, tol)
+    } else noCovariatesAI(y_working, x, d^2, tau, fixtau, tol)
     tau <- as.numeric(model1$tau)
     alpha <- as.numeric(model1$alpha)
     eta <- as.numeric(model1$eta)
@@ -471,11 +531,19 @@ boston <- function(counts,
     y_working[abs(y_working) > 1e3] <- stats::median(y_working)
     change <- 2 * max(abs(alpha - alpha_old) / (abs(alpha) + abs(alpha_old) + tol),
       abs(tau - tau_old) / (abs(tau) + abs(tau_old) + tol))
-    if (is.finite(change) && change < tol) break
+    if (is.finite(change) && change < tol) {
+      covariate_converged <- TRUE
+      break
+    }
     if (max(tau) > tol^(-2) || any(!is.finite(c(d, mu, eta)))) {
+      if (has_covariates) stop("Non-finite or divergent covariate null-model iteration.")
       tau <- initial_tau
       break
     }
   }
-  list(theta = tau, Y = y_working, D = d, converged = iteration < maxiter)
+  if (has_covariates && any(!is.finite(c(tau, y_working, d)))) {
+    stop("Covariate null model returned non-finite working quantities.")
+  }
+  list(theta = tau, Y = y_working, D = d,
+    converged = if (has_covariates) covariate_converged else iteration < maxiter)
 }

@@ -5,6 +5,14 @@ ComputeAdaptiveBandwidthsKNN <- function(xin, random_seed = 123L, k_local = 16L,
     .Call(`_BOSTON_ComputeAdaptiveBandwidthsKNN`, xin, random_seed, k_local, n_query, n_pairs, local_quantile, global_quantile)
 }
 
+BOSTONCovariateAI <- function(y, x, d2, tau, fix_nugget, tol) {
+    .Call(`_BOSTON_BOSTONCovariateAI`, y, x, d2, tau, fix_nugget, tol)
+}
+
+BOSTONCovariateScore <- function(y, location, sigma, d2, tau, x, kernel = NULL, block_size = 64L) {
+    .Call(`_BOSTON_BOSTONCovariateScore`, y, location, sigma, d2, tau, x, kernel, block_size)
+}
+
 #' define a class
 #' 
 NULL

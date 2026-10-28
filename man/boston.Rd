@@ -17,7 +17,8 @@ boston(
   seed = 123L,
   weights = NULL,
   padj_method = "BY",
-  verbose = FALSE
+  verbose = FALSE,
+  kernels = NULL
 )
 }
 \arguments{
@@ -29,8 +30,11 @@ requires the same unique location IDs in exactly the same order.}
 \item{location}{Numeric matrix or data frame with exactly two coordinate
 columns and one row for every column of \code{counts}.}
 
-\item{covariates}{Reserved for a future covariate-adjusted scalable test; must
-be \code{NULL}.}
+\item{covariates}{Optional location-by-covariate numeric matrix or data.frame.
+Supply non-intercept predictors only, without missing values. An intercept
+is added and the resulting design must have full column rank. Row IDs must
+match count column IDs in order when IDs are used. Character columns should
+be explicitly converted to factors. \code{NULL} fits an intercept-only model.}
 
 \item{features}{Optional feature names or integer indices to test. By default,
 all features are tested.}
@@ -52,7 +56,7 @@ OpenMP or BLAS threads; see the README for large-data execution settings.}
 \item{seed}{Non-negative integer seed passed to \code{\link[=adaptive_bandwidths]{adaptive_bandwidths()}}.
 Unused when explicit \code{bandwidths} are supplied.}
 
-\item{weights}{Optional non-negative weights for the five kernels, in
+\item{weights}{Optional finite non-negative weights for the kernels, in
 bandwidth order, with positive finite sum. \code{NULL} uses equal weights.}
 
 \item{padj_method}{Adjustment method accepted by \code{\link[stats:p.adjust]{stats::p.adjust()}}, default
@@ -60,23 +64,33 @@ bandwidth order, with positive finite sum. \code{NULL} uses equal weights.}
 \code{NULL} or an unsupported method skips adjustment with a warning.}
 
 \item{verbose}{Logical; report progress messages.}
+
+\item{kernels}{Optional nonzero positive-semidefinite numeric matrix, or
+named list of such matrices, replacing the five Gaussian kernels. Both
+axes must match count column IDs in order. Dense custom kernels are limited
+to 2000 locations for exact eigenvalue validation. Names must start with a
+letter and contain only letters, digits or underscores. With custom kernels,
+\code{bandwidths} must be \code{NULL} and \code{seed} is unused. Constant/projected-out
+kernels yield \code{test_failed}, not a significant p-value.}
 }
 \value{
 A \code{boston_result} data frame ordered by combined p-value. It includes
-five kernel-specific p-values (\verb{pvalue_gaussian_*}), the ACAT p-value
+kernel-specific p-values (\verb{pvalue_gaussian_*} or \verb{pvalue_<kernel name>}), the ACAT p-value
 (\code{pvalue}), Benjamini-Yekutieli FDR (\code{padj_BY}, by default), and model status. The
 bandwidths used are stored in \code{attr(result, "bandwidths")}.
 }
 \description{
 \code{boston()} binarizes a feature-by-location count matrix, fits a binomial null
-model to each non-constant feature, tests five Gaussian spatial kernels, and
+model to each non-constant feature, tests Gaussian or supplied spatial kernels, and
 combines their p-values using the aggregated Cauchy association test (ACAT).
 The default bandwidths are selected adaptively from the supplied coordinates.
 }
 \details{
-The scalable score-test implementation currently supports an intercept-only
-null model. \code{covariates} is retained in the interface for forward compatibility
-and must be \code{NULL} in this release.
+An intercept is included automatically. With covariates, testing concerns
+residual spatial structure conditional on the supplied design. Numeric
+matrices or data.frames with numeric, factor or logical columns are accepted.
+Covariate-adjusted Gaussian testing uses row-block kernel calculations and
+rank-q projection updates, without constructing a dense projection matrix.
 }
 \examples{
 set.seed(1)

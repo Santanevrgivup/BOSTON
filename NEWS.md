@@ -1,3 +1,13 @@
+# BOSTON 0.3.0
+
+* Support full-rank numeric/factor covariates with an automatic intercept.
+* Add low-rank covariate null updates and blocked Gaussian score moments.
+* Accept named dense PSD kernels (up to 2000 locations), with alignment,
+  symmetry, PSD and kernel-weight checks. Degenerate projected kernels fail
+  explicitly. The ACAT function is unchanged.
+* Include an executable real-data QC, adjustment, plotting and saving tutorial.
+* Guard the OpenMP header for toolchains that compile without OpenMP.
+
 # BOSTON 0.2.0
 
 * Rename the package and primary function to BOSTON and `boston()`.

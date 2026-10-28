@@ -1,14 +1,15 @@
 Package: BOSTON
 Type: Package
 Title: Spatially Variable Feature Detection for Sparse Spatial Omics Data
-Version: 0.2.0
+Version: 0.3.0
 Authors@R: c(
     person("Yuhan", "Zhao", email = "yuhanZhao@stu.xjtu.edu.cn", role = c("aut", "cre")),
     person("Shiquan", "Sun", email = "sqsunsph@xjtu.edu.cn", role = "aut"))
 Description: Detects spatially variable features in sparse spatial omics data
     with a binomial mixed-model score test. BOSTON binarizes feature counts,
-    evaluates five Gaussian spatial kernels selected from the observed spatial
-    sampling geometry, and combines kernel-specific p-values using ACAT.
+    adjusts for optional location-level covariates, evaluates five Gaussian
+    spatial kernels or user-supplied positive-semidefinite kernels, and combines
+    kernel-specific p-values using ACAT.
 URL: https://github.com/Santanevrgivup/BOSTON
 BugReports: https://github.com/Santanevrgivup/BOSTON/issues
 License: GPL-3
