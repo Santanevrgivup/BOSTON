@@ -1,3 +1,12 @@
+# BOSTON 0.3.1
+
+* Fix zero-nugget initialization in covariate boundary refits, preventing
+  repeated switching between the free zero estimate and a fixed 0.1 start.
+  At this boundary the covariate null uses the ordinary logistic fit directly.
+  The inherited intercept-only fit remains unchanged.
+* Use the system clock_t definition instead of a conflicting manual typedef
+  on macOS.
+
 # BOSTON 0.3.0
 
 * Support full-rank numeric/factor covariates with an automatic intercept.

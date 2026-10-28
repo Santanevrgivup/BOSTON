@@ -1,7 +1,7 @@
 Package: BOSTON
 Type: Package
 Title: Spatially Variable Feature Detection for Sparse Spatial Omics Data
-Version: 0.3.0
+Version: 0.3.1
 Authors@R: c(
     person("Yuhan", "Zhao", email = "yuhanZhao@stu.xjtu.edu.cn", role = c("aut", "cre")),
     person("Shiquan", "Sun", email = "sqsunsph@xjtu.edu.cn", role = "aut"))

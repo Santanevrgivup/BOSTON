@@ -488,6 +488,16 @@ boston <- function(counts,
   x <- if (!is.null(model0$x)) model0$x else stats::model.matrix(model0)
   has_covariates <- ncol(x) > 1L
   alpha <- model0$coefficients
+  # At the zero-nugget boundary the null is ordinary logistic regression,
+  # already solved by model0. Avoid iterating a regularized AI approximation
+  # for a variance component that has explicitly been fixed to zero.
+  if (has_covariates && fixtau[2] != 0) {
+    if (any(!is.finite(c(y_working, d, alpha)))) {
+      stop("Logistic boundary fit returned non-finite working quantities.")
+    }
+    return(list(theta = c(1, 0), Y = y_working, D = d,
+      converged = isTRUE(model0$converged)))
+  }
 
   tau[1] <- 1
   fixtau[1] <- 1

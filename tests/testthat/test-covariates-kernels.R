@@ -8,6 +8,19 @@ extension_fixture <- function(n = 80L) {
   list(counts = counts, location = location, covariates = covariates)
 }
 
+test_that("covariate boundary refits fix the nugget to zero", {
+  f <- extension_fixture()
+  x <- model.matrix(~ ., f$covariates)
+  model <- glm.fit(x, as.numeric(f$counts[1, ]), family = binomial())
+  model$x <- x
+  fit <- .boston_ai(model, 1L, fixtau = c(1, 1), maxiter = 30L, tol = 1e-5)
+  expect_identical(as.numeric(fit$theta[2]), 0)
+  expect_true(all(is.finite(c(fit$Y, fit$D))))
+  expect_identical(fit$converged, isTRUE(model$converged))
+  expect_equal(fit$Y, model$linear.predictors +
+    (model$y - model$fitted.values) / (model$fitted.values * (1 - model$fitted.values)))
+})
+
 test_that("blocked covariate score agrees with explicit independent P algebra", {
   f <- extension_fixture(35L)
   x <- model.matrix(~ ., f$covariates)
